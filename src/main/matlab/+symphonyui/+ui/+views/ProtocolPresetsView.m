@@ -9,16 +9,29 @@ classdef ProtocolPresetsView < appbox.View
         RemoveProtocolPreset
         ApplyProtocolPreset
         UpdateProtocolPreset
+        UpdateProtocolPresetsChain
+        ViewOnlyProtocolPresetsChain
+        RecordProtocolPresetsChain
+        StopProtocolPresetsChain
     end
 
     properties (Access = private)
         presetsTable
+        presetsChainTableLabel
+        presetsChainTable
         viewOnlyButton
         recordButton
         stopButton
+        addToChainButton
         addButton
         removeButton
         updateMenu
+        moveUpChainButton
+        moveDownChainButton
+        removeFromChainButton
+        stopChainButton
+        viewOnlyChainButton
+        recordChainButton
     end
 
     methods
@@ -34,20 +47,27 @@ classdef ProtocolPresetsView < appbox.View
             mainLayout = uix.VBox( ...
                 'Parent', obj.figureHandle, ...
                 'Spacing', 1);
-            
-            filterLayout = uix.HBox( ...
+
+            presetsLayout = uix.HBoxFlex( ...
                 'Parent', mainLayout);
 
+            presetsTableLayout = uix.VBox( ...
+                'Parent', presetsLayout);
+
+            filterLayout = uix.HBox( ...
+                'Parent', presetsTableLayout);
+
             obj.presetsTable = uiextras.jTable.Table( ...
-                'Parent', mainLayout, ...
-                'ColumnName', {'Preset', 'View Only', 'Record'}, ...
-                'ColumnFormat', {'', 'button', 'button'}, ...
+                'Parent', presetsTableLayout, ...
+                'ColumnName', {'Preset', 'View Only', 'Record', 'AddToChain'}, ...
+                'ColumnFormat', {'', 'button', 'button', 'button'}, ...
                 'ColumnFormatData', ...
                     {{}, ...
                     @obj.onSelectedViewOnlyProtocolPreset, ...
-                    @obj.onSelectedRecordProtocolPreset}, ...
-                'ColumnMinWidth', [0 40 40], ...
-                'ColumnMaxWidth', [java.lang.Integer.MAX_VALUE 40 40], ...
+                    @obj.onSelectedRecordProtocolPreset, ...
+                    @obj.onSelectedAddToProtocolPresetsChain}, ...
+                'ColumnMinWidth', [0 40 40 40], ...
+                'ColumnMaxWidth', [java.lang.Integer.MAX_VALUE 40 40 40], ...
                 'Data', {}, ...
                 'UserData', struct('viewOnlyEnabled', false, 'recordEnabled', false), ...
                 'RowHeight', 40, ...
@@ -56,7 +76,7 @@ classdef ProtocolPresetsView < appbox.View
                 'Editable', 'off', ...
                 'MouseClickedCallback', @obj.onTableMouseClicked, ...
                 'CellSelectionCallback', @(h,d)notify(obj, 'SelectedProtocolPreset'));
-            
+
             presetMenu = uicontextmenu('Parent', obj.figureHandle);
             uimenu( ...
                 'Parent', presetMenu, ...
@@ -67,7 +87,7 @@ classdef ProtocolPresetsView < appbox.View
                 'Label', 'Update Protocol Preset', ...
                 'Callback', @(h,d)notify(obj, 'UpdateProtocolPreset'));
             set(obj.presetsTable, 'CellUIContextMenu', presetMenu);
-            
+
             filterField = obj.presetsTable.getFilterField();
             javacomponent(filterField, [], filterLayout);
             filterField.setHintText('Type here to filter presets. Double-click a preset to apply it.');
@@ -80,9 +100,12 @@ classdef ProtocolPresetsView < appbox.View
             obj.recordButton.icon = App.getResource('icons', 'record.png');
             obj.recordButton.tooltip = 'Record Protocol Preset';
 
+            obj.addToChainButton.icon = App.getResource('icons', 'chain_arrow.png');
+            obj.addToChainButton.tooltip = 'Add to protocol chain';
+
             % Presets toolbar.
             presetsToolbarLayout = uix.HBox( ...
-                'Parent', mainLayout);
+                'Parent', presetsTableLayout);
             obj.stopButton = Button( ...
                 'Parent', presetsToolbarLayout, ...
                 'Icon', symphonyui.app.App.getResource('icons', 'stop_small.png'), ...
@@ -101,12 +124,76 @@ classdef ProtocolPresetsView < appbox.View
                 'Callback', @(h,d)notify(obj, 'RemoveProtocolPreset'));
             set(presetsToolbarLayout, 'Widths', [22 -1 22 22]);
 
-            set(mainLayout, 'Heights', [23 -1 22]);
+            set(presetsTableLayout, 'Height', [23 -1 22]);
+
+
+            % TODO: add presets chain table
+            presetsChainTableLayout = uix.VBox( ...
+                'Parent', presetsLayout);
+
+            obj.presetsChainTableLabel = Label( ...
+                'Parent', presetsChainTableLayout, ...
+                'String', 'Protocol Presets Chain');
+
+            obj.presetsChainTable = uiextras.jTable.Table( ...
+                'Parent', presetsChainTableLayout, ...
+                'ColumnName', {'Preset', 'MoveUpChain', 'MoveDownChain', 'RemoveFromChain'}, ...
+                'ColumnFormat', {'', 'button', 'button', 'button'}, ...
+                'ColumnFormatData', ...
+                    {{}, ...
+                    @obj.onSelectedMoveUpProtocolPresetsChain, ...
+                    @obj.onSelectedMoveDownProtocolPresetsChain, ...
+                    @obj.onSelectedRemoveFromProtocolPresetsChain}, ...
+                'ColumnMinWidth', [0 40 40 40], ...
+                'ColumnMaxWidth', [java.lang.Integer.MAX_VALUE 40 40 40], ...
+                'Data', {}, ...
+                'UserData', struct('moveUpEnabled', false, 'moveDownEnabled', false), ...
+                'RowHeight', 40, ...
+                'BorderType', 'none', ...
+                'ShowVerticalLines', 'off', ...
+                'Editable', 'off');
+
+            obj.moveUpChainButton.icon = App.getResource('icons', 'arrow_up_alt.png');
+            obj.moveUpChainButton.tooltip = 'Move Up The Chain';
+
+            obj.moveDownChainButton.icon = App.getResource('icons', 'arrow_down_alt.png');
+            obj.moveDownChainButton.tooltip = 'Move Down The Chain';
+
+            obj.removeFromChainButton.icon = App.getResource('icons', 'remove.png');
+            obj.removeFromChainButton.tooltip = 'Remove From The Chain';
+
+            % Presets Chain toolbar.
+            presetsChainToolbarLayout = uix.HBox( ...
+                'Parent', presetsChainTableLayout);
+            obj.stopChainButton = Button( ...
+                'Parent', presetsChainToolbarLayout, ...
+                'Icon', symphonyui.app.App.getResource('icons', 'stop_small.png'), ...
+                'TooltipString', 'Stop Protocol Presets Chain', ...
+                'Callback', @(h,d)notify(obj, 'StopProtocolPresetsChain'));
+            uix.Empty('Parent', presetsChainToolbarLayout);
+            obj.viewOnlyChainButton = Button( ...
+                'Parent', presetsChainToolbarLayout, ...
+                'Icon', symphonyui.app.App.getResource('icons', 'view_only.png'), ...
+                'TooltipString', 'View Only Protocol Presets Chain', ...
+                'Enable', 'off', ...
+                'Callback', @(h,d)notify(obj, 'ViewOnlyProtocolPresetsChain'));
+            obj.recordChainButton = Button( ...
+                'Parent', presetsChainToolbarLayout, ...
+                'Icon', symphonyui.app.App.getResource('icons', 'record.png'), ...
+                'TooltipString', 'Record Protocol Presets Chain', ...
+                'Enable', 'off', ...
+                'Callback', @(h,d)notify(obj, 'RecordProtocolPresetsChain'));
+            set(presetsChainToolbarLayout, 'Widths', [22 -1 22 22]);
+            set(presetsChainTableLayout, 'Height', [23 -1 22]);
+
+            set(presetsLayout, 'Width', [-1 -1]);
+            set(mainLayout, 'Heights', -1);
         end
 
         function show(obj)
             show@appbox.View(obj);
             set(obj.presetsTable, 'ColumnHeaderVisible', false);
+            set(obj.presetsChainTable, 'ColumnHeaderVisible', false);
         end
 
         function enableViewOnlyProtocolPreset(obj, tf)                        
@@ -115,7 +202,7 @@ classdef ProtocolPresetsView < appbox.View
                 data{i, 2} = {obj.viewOnlyButton.icon, obj.viewOnlyButton.tooltip, tf};
             end
             set(obj.presetsTable, 'Data', data);
-            
+
             enables = get(obj.presetsTable, 'UserData');
             enables.viewOnlyEnabled = tf;
             set(obj.presetsTable, 'UserData', enables);
@@ -147,19 +234,46 @@ classdef ProtocolPresetsView < appbox.View
             set(obj.stopButton, 'Enable', appbox.onOff(tf));
         end
 
+        function enableViewOnlyProtocolPresetsChain(obj, tf)
+            data = get(obj.presetsChainTable, 'Data');
+            tf = (size(data, 1) > 0) && tf;
+            set(obj.viewOnlyChainButton, 'Enable', appbox.onOff(tf));
+        end
+
+        function enableRecordProtocolPresetsChain(obj, tf)
+            data = get(obj.presetsChainTable, 'Data');
+            tf = (size(data, 1) > 0) && tf;
+            set(obj.recordChainButton, 'Enable', appbox.onOff(tf));
+        end
+
+        function enableStopProtocolPresetsChain(obj, tf)
+            set(obj.stopChainButton, 'Enable', appbox.onOff(tf));
+        end
+
         function setProtocolPresets(obj, data)
             enables = get(obj.presetsTable, 'UserData');
-            d = cell(size(data, 1), 3);
+            d = cell(size(data, 1), 4);
             for i = 1:size(d, 1)
                 d{i, 1} = toDisplayName(data{i, 1}, data{i, 2});
                 d{i, 2} = {obj.viewOnlyButton.icon, obj.viewOnlyButton.tooltip, enables.viewOnlyEnabled};
                 d{i, 3} = {obj.recordButton.icon, obj.recordButton.tooltip, enables.recordEnabled};
+                d{i, 4} = {obj.addToChainButton.icon, obj.addToChainButton.tooltip, true};
             end
             set(obj.presetsTable, 'Data', d);
         end
 
         function d = getProtocolPresets(obj)
             presets = obj.presetsTable.getColumnData(1);
+            d = cell(numel(presets), 2);
+            for i = 1:size(d, 1)
+                [name, protocolId] = fromDisplayName(presets{i});
+                d{i, 1} = name;
+                d{i, 2} = protocolId;
+            end
+        end
+
+        function d = getProtocolPresetsChain(obj)
+            presets = obj.presetsChainTable.getColumnData(1);
             d = cell(numel(presets), 2);
             for i = 1:size(d, 1)
                 [name, protocolId] = fromDisplayName(presets{i});
@@ -176,7 +290,8 @@ classdef ProtocolPresetsView < appbox.View
             enables = get(obj.presetsTable, 'UserData');
             obj.presetsTable.addRow({toDisplayName(name, protocolId), ...
                 {obj.viewOnlyButton.icon, obj.viewOnlyButton.tooltip, enables.viewOnlyEnabled}, ...
-                {obj.recordButton.icon, obj.recordButton.tooltip, enables.recordEnabled}});
+                {obj.recordButton.icon, obj.recordButton.tooltip, enables.recordEnabled}, ...
+                {obj.addToChainButton.icon, obj.addToChainButton.tooltip, true}});
         end
 
         function removeProtocolPreset(obj, name)
@@ -222,13 +337,125 @@ classdef ProtocolPresetsView < appbox.View
             data.getEditingRow = @()obj.presetsTable.getActualRowsAt(src.getEditingRow() + 1);
             notify(obj, 'RecordProtocolPreset', symphonyui.ui.UiEventData(data))
         end
-        
+
+        function onSelectedAddToProtocolPresetsChain(obj, ~, event)
+            src = event.getSource();
+            data.getEditingRow = @()obj.presetsTable.getActualRowsAt(src.getEditingRow() + 1);
+            % TODO: add the selected preset to obj.presetsChainTable
+            presets = obj.getProtocolPresets();
+            [name, protocolId] = presets{data.getEditingRow(), :};
+            moveUpEnabled = true;
+            addingFirstRow = false;
+            if isempty(obj.presetsChainTable.Data) % adding first row
+                moveUpEnabled = false;
+                addingFirstRow = true;
+            else
+                % enable last row's moveDownButton status
+                lastRowNumber = size(obj.presetsChainTable.Data, 1);
+                obj.setMoveDownButtonEnableStatus(lastRowNumber, true);
+            end
+            obj.presetsChainTable.addRow({toDisplayName(name, protocolId), ...
+                {obj.moveUpChainButton.icon, obj.moveUpChainButton.tooltip, moveUpEnabled}, ...
+                {obj.moveDownChainButton.icon, obj.moveDownChainButton.tooltip, false}, ...
+                {obj.removeFromChainButton.icon, obj.removeFromChainButton.tooltip, true}});
+
+            if addingFirstRow
+                notify(obj, 'UpdateProtocolPresetsChain'); % enable 'View Only / Record Chain Buttons'
+            end
+        end
+
         function onTableMouseClicked(obj, ~, event)
             if event.ClickCount == 2
                 notify(obj, 'ApplyProtocolPreset');
             end
         end
-        
+
+        function onChainTableMouseClicked(obj, ~, event)
+            if event.ClickCount == 2
+                % TODO: add something to do, if required;
+            end
+        end
+
+        function onSelectedMoveUpProtocolPresetsChain(obj, ~, event)
+            src = event.getSource();
+            data.getEditingRow = @()obj.presetsChainTable.getActualRowsAt(src.getEditingRow() + 1);
+            % swap positions of selected and selected-1 rows
+            selectedRowNumber = data.getEditingRow();
+            upperRowNumber = selectedRowNumber - 1;
+            obj.swapPresetsChainTableRows(selectedRowNumber, upperRowNumber);
+        end
+
+        function onSelectedMoveDownProtocolPresetsChain(obj, ~, event)
+            src = event.getSource();
+            data.getEditingRow = @()obj.presetsChainTable.getActualRowsAt(src.getEditingRow() + 1);
+            % swap positions of selected and selected+1 rows
+            selectedRowNumber = data.getEditingRow();
+            lowerRowNumber = selectedRowNumber + 1;
+            obj.swapPresetsChainTableRows(selectedRowNumber, lowerRowNumber);
+        end
+
+        function onSelectedRemoveFromProtocolPresetsChain(obj, ~, event)
+            src = event.getSource();
+            data.getEditingRow = @()obj.presetsChainTable.getActualRowsAt(src.getEditingRow() + 1);
+
+            selectedRowNumber = data.getEditingRow();
+            numberOfRows = size(obj.presetsChainTable.Data, 1);
+            if numberOfRows > 1
+                if selectedRowNumber == 1
+                    obj.setMoveUpButtonEnableStatus(selectedRowNumber+1, false);
+                elseif selectedRowNumber == numberOfRows
+                    obj.setMoveDownButtonEnableStatus(selectedRowNumber-1, false);
+                end
+            end
+            obj.presetsChainTable.Data(selectedRowNumber, :) = [];
+            if isempty(obj.presetsChainTable.Data)
+                notify(obj, 'UpdateProtocolPresetsChain'); % disable 'View Only / Record Chain Buttons'
+            end
+        end
+
+        function swapPresetsChainTableRows(obj, firstRowNumber, secondRowNumber)
+            % swap moveUpButton enabled status
+            tempMoveUpButtonStatus = obj.getMoveUpButtonEnableStatus(firstRowNumber);
+            obj.setMoveUpButtonEnableStatus(firstRowNumber, obj.getMoveUpButtonEnableStatus(secondRowNumber));
+            obj.setMoveUpButtonEnableStatus(secondRowNumber, tempMoveUpButtonStatus);
+            % swap moveDownButton enabled status
+            tempMoveDownButtonStatus = obj.getMoveDownButtonEnableStatus(firstRowNumber);
+            obj.setMoveDownButtonEnableStatus(firstRowNumber, obj.getMoveDownButtonEnableStatus(secondRowNumber));
+            obj.setMoveDownButtonEnableStatus(secondRowNumber, tempMoveDownButtonStatus);
+            % swap positions of first and second rows
+            tempRow = obj.presetsChainTable.Data(firstRowNumber, :);
+            obj.presetsChainTable.Data(firstRowNumber, :) = obj.presetsChainTable.Data(secondRowNumber, :);
+            obj.presetsChainTable.Data(secondRowNumber, :) = tempRow;
+        end
+
+        function tf = getMoveUpButtonEnableStatus(obj, rowNumber)
+            tf = obj.presetsChainTable.Data{rowNumber, 2}{3};
+        end
+
+        function setMoveUpButtonEnableStatus(obj, rowNumber, tf)
+            obj.presetsChainTable.Data{rowNumber, 2}{3} = tf;
+        end
+
+        function tf = getMoveDownButtonEnableStatus(obj, rowNumber)
+            tf = obj.presetsChainTable.Data{rowNumber, 3}{3};
+        end
+
+        function setMoveDownButtonEnableStatus(obj, rowNumber, tf)
+            obj.presetsChainTable.Data{rowNumber, 3}{3} = tf;
+        end
+
+        function onSelectedViewOnlyProtocolPresetsChain(obj, ~, event)
+            src = event.getSource();
+            data.getEditingRow = @()obj.presetsChainTable.getActualRowsAt(src.getEditingRow() + 1);
+            notify(obj, 'ViewOnlyProtocolPresetsChain', symphonyui.ui.UiEventData(data))
+        end
+
+        function onSelectedRecordProtocolPresetsChain(obj, ~, event)
+            src = event.getSource();
+            data.getEditingRow = @()obj.presetsChainTable.getActualRowsAt(src.getEditingRow() + 1);
+            notify(obj, 'RecordProtocolPresetsChain', symphonyui.ui.UiEventData(data))
+        end
+
     end
 
 end
