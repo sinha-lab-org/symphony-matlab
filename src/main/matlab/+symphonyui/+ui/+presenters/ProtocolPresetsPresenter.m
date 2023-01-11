@@ -6,6 +6,11 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
         documentationService
         acquisitionService
         configurationService
+    end
+
+    properties (Hidden)
+        currentPresetsChainIndex
+        pauseProtcolPresetsChainRequested
         stopProtocolPresetsChainRequested
     end
 
@@ -22,6 +27,8 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
             obj.documentationService = documentationService;
             obj.acquisitionService = acquisitionService;
             obj.configurationService = configurationService;
+            obj.currentPresetsChainIndex = 1;
+            obj.pauseProtcolPresetsChainRequested = false;
             obj.stopProtocolPresetsChainRequested = false;
         end
 
@@ -65,6 +72,7 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
             obj.addListener(v, 'UpdateProtocolPresetsChain', @obj.onViewSelectedUpdateProtocolPresetsChain);
             obj.addListener(v, 'ViewOnlyProtocolPresetsChain', @obj.onViewSelectedViewOnlyProtocolPresetsChain);
             obj.addListener(v, 'RecordProtocolPresetsChain', @obj.onViewSelectedRecordProtocolPresetsChain);
+            obj.addListener(v, 'PauseProtocolPresetsChain', @obj.onViewSelectedPauseProtocolPresetsChain);
             obj.addListener(v, 'StopProtocolPresetsChain', @obj.onViewSelectedStopProtocolPresetsChain);
 
             d = obj.documentationService;
@@ -163,25 +171,40 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
         end
 
         function onViewSelectedViewOnlyProtocolPresetsChain(obj, ~, ~)
-            options = obj.configurationService.getOptions();
-            if obj.documentationService.hasOpenFile() && options.warnOnViewOnlyWithOpenFile
-                [result, dontShow] = obj.view.showMessage( ...
-                    'Are you sure you want to run "View Only"? No data will be saved to your file.', 'Warning', ...
-                    'button1', 'Cancel', ...
-                    'button2', 'View Only', ...
-                    'checkbox', 'Don''t show this message again', ...
-                    'default', 2);
-                if ~strcmp(result, 'View Only')
-                    return;
+            if obj.pauseProtcolPresetsChainRequested
+                obj.pauseProtcolPresetsChainRequested = false;
+                controllerState = obj.acquisitionService.getControllerState();
+                if controllerState.isPaused()
+                    obj.acquisitionService.requestResume();
                 end
-                if dontShow
-                    options.warnOnViewOnlyWithOpenFile = false;
+            else
+                obj.currentPresetsChainIndex = 1;
+                obj.stopProtocolPresetsChainRequested = false;
+                options = obj.configurationService.getOptions();
+                if obj.documentationService.hasOpenFile() && options.warnOnViewOnlyWithOpenFile
+                    [result, dontShow] = obj.view.showMessage( ...
+                        'Are you sure you want to run "View Only"? No data will be saved to your file.', 'Warning', ...
+                        'button1', 'Cancel', ...
+                        'button2', 'View Only', ...
+                        'checkbox', 'Don''t show this message again', ...
+                        'default', 2);
+                    if ~strcmp(result, 'View Only')
+                        return;
+                    end
+                    if dontShow
+                        options.warnOnViewOnlyWithOpenFile = false;
+                    end
                 end
             end
+
             presets = obj.view.getProtocolPresetsChain();
             presetNames = presets(:, 1);
-            for p = 1:length(presetNames)
-                if obj.stopProtocolPresetsChainRequested
+            for p = obj.currentPresetsChainIndex:length(presetNames)
+                if obj.pauseProtcolPresetsChainRequested % if pause requested
+                    obj.currentPresetsChainIndex = p; % allows protocol resume from p onwards
+                    break;
+                end
+                if obj.stopProtocolPresetsChainRequested % if stop requested
                     obj.stopProtocolPresetsChainRequested = false;
                     break;
                 end
@@ -198,14 +221,32 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
                     obj.view.showError(msg);
                     return;
                 end
+                if p == length(presetNames) % last iteration
+                    obj.currentPresetsChainIndex = p+1;
+                end
             end
         end
 
         function onViewSelectedRecordProtocolPresetsChain(obj, ~, ~)
+            if obj.pauseProtcolPresetsChainRequested
+                obj.pauseProtcolPresetsChainRequested = false;
+                controllerState = obj.acquisitionService.getControllerState();
+                if controllerState.isPaused()
+                    obj.acquisitionService.requestResume();
+                end
+            else
+                obj.currentPresetsChainIndex = 1;
+                obj.stopProtocolPresetsChainRequested = false;
+            end
+
             presets = obj.view.getProtocolPresetsChain();
             presetNames = presets(:, 1);
-            for p = 1:length(presetNames)
-                if obj.stopProtocolPresetsChainRequested
+            for p = obj.currentPresetsChainIndex:length(presetNames)
+                if obj.pauseProtcolPresetsChainRequested % if pause requested
+                    obj.currentPresetsChainIndex = p; % allows protocol resume from p onwards
+                    break;
+                end
+                if obj.stopProtocolPresetsChainRequested % if stop requested
                     obj.stopProtocolPresetsChainRequested = false;
                     break;
                 end
@@ -222,11 +263,30 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
                     obj.view.showError(msg);
                     return;
                 end
+                if p == length(presetNames) % last iteration
+                    obj.currentPresetsChainIndex = p+1;
+                end
+            end
+        end
+
+        function onViewSelectedPauseProtocolPresetsChain(obj, ~, ~)
+            try
+                obj.pauseProtcolPresetsChainRequested = true;
+                obj.acquisitionService.requestPause();
+            catch x
+                msg = x.message;
+                for i = 1:numel(x.cause)
+                    msg = sprintf('%s\n- %s', msg, x.cause{i}.message);
+                end
+                obj.log.debug(msg, x);
+                obj.view.showError(msg);
+                return;
             end
         end
 
         function onViewSelectedStopProtocolPresetsChain(obj, ~, ~)
             try
+                obj.pauseProtcolPresetsChainRequested = false;
                 obj.stopProtocolPresetsChainRequested = true;
                 obj.acquisitionService.requestStop();
             catch x
@@ -322,13 +382,18 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
         end
 
         function updateStateOfControls(obj)
-            import symphonyui.core.ControllerState;
-
             hasOpenFile = obj.documentationService.hasOpenFile();
             hasEpochGroup = hasOpenFile && ~isempty(obj.documentationService.getCurrentEpochGroup());
             controllerState = obj.acquisitionService.getControllerState();
+
+            isPausing = controllerState.isPausing();
+            isViewingPaused = controllerState.isViewingPaused();
+            isRecordingPaused = controllerState.isRecordingPaused();
+            %isPaused = controllerState.isPaused();
+
             isStopping = controllerState.isStopping();
             isStopped = controllerState.isStopped();
+
             [~, id] = obj.view.getSelectedProtocolPreset();
             isProtocolIdEqual = strcmp(id, obj.acquisitionService.getSelectedProtocol());
             try
@@ -336,22 +401,28 @@ classdef ProtocolPresetsPresenter < appbox.Presenter
             catch
                 isValid = false;
             end
-            
-            enableViewOnlyProtocolPreset = isStopped;
-            enableRecordProtocolPreset = hasEpochGroup && isStopped;
+
+            enableViewOnlyProtocolPreset = isValid && (isViewingPaused || isStopped);
+            enableRecordProtocolPreset = isValid && hasEpochGroup && (isRecordingPaused || isStopped);
+            enablePauseProtocolPreset = ~isPausing && ~isViewingPaused && ~isRecordingPaused && ~isStopping && ~isStopped;
             enableStopProtocolPreset = ~isStopping && ~isStopped;
             enableAddProtocolPreset = isValid;
             enableUpdateProtocolPreset = isValid && isProtocolIdEqual;
-            
+
             obj.view.enableViewOnlyProtocolPreset(enableViewOnlyProtocolPreset);
             obj.view.enableViewOnlyProtocolPresetsChain(enableViewOnlyProtocolPreset);
+
             obj.view.enableRecordProtocolPreset(enableRecordProtocolPreset);
             obj.view.enableRecordProtocolPresetsChain(enableRecordProtocolPreset);
+
+            obj.view.enablePauseProtocolPresetChain(enablePauseProtocolPreset);
+
             obj.view.enableStopProtocolPreset(enableStopProtocolPreset);
             obj.view.enableStopProtocolPresetsChain(enableStopProtocolPreset);
+
             obj.view.enableAddProtocolPreset(enableAddProtocolPreset);
             obj.view.enableUpdateProtocolPreset(enableUpdateProtocolPreset);
-            
+
             if ~enableViewOnlyProtocolPreset
                 obj.view.stopEditingViewOnlyProtocolPreset();
             end

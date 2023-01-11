@@ -12,6 +12,7 @@ classdef ProtocolPresetsView < appbox.View
         UpdateProtocolPresetsChain
         ViewOnlyProtocolPresetsChain
         RecordProtocolPresetsChain
+        PauseProtocolPresetsChain
         StopProtocolPresetsChain
     end
 
@@ -29,6 +30,7 @@ classdef ProtocolPresetsView < appbox.View
         moveUpChainButton
         moveDownChainButton
         removeFromChainButton
+        pauseChainButton
         stopChainButton
         viewOnlyChainButton
         recordChainButton
@@ -165,11 +167,6 @@ classdef ProtocolPresetsView < appbox.View
             % Presets Chain toolbar.
             presetsChainToolbarLayout = uix.HBox( ...
                 'Parent', presetsChainTableLayout);
-            obj.stopChainButton = Button( ...
-                'Parent', presetsChainToolbarLayout, ...
-                'Icon', symphonyui.app.App.getResource('icons', 'stop_small.png'), ...
-                'TooltipString', 'Stop Protocol Presets Chain', ...
-                'Callback', @(h,d)notify(obj, 'StopProtocolPresetsChain'));
             uix.Empty('Parent', presetsChainToolbarLayout);
             obj.viewOnlyChainButton = Button( ...
                 'Parent', presetsChainToolbarLayout, ...
@@ -183,7 +180,17 @@ classdef ProtocolPresetsView < appbox.View
                 'TooltipString', 'Record Protocol Presets Chain', ...
                 'Enable', 'off', ...
                 'Callback', @(h,d)notify(obj, 'RecordProtocolPresetsChain'));
-            set(presetsChainToolbarLayout, 'Widths', [22 -1 22 22]);
+            obj.pauseChainButton = Button( ...
+                'Parent', presetsChainToolbarLayout, ...
+                'Icon', symphonyui.app.App.getResource('icons', 'pause.png'), ...
+                'TooltipString', 'Pause Protocol Presets Chain', ...
+                'Callback', @(h,d)notify(obj, 'PauseProtocolPresetsChain'));
+            obj.stopChainButton = Button( ...
+                'Parent', presetsChainToolbarLayout, ...
+                'Icon', symphonyui.app.App.getResource('icons', 'stop_small.png'), ...
+                'TooltipString', 'Stop Protocol Presets Chain', ...
+                'Callback', @(h,d)notify(obj, 'StopProtocolPresetsChain'));
+            set(presetsChainToolbarLayout, 'Widths', [-1 22 22 22 22]);
             set(presetsChainTableLayout, 'Height', [23 -1 22]);
 
             set(presetsLayout, 'Width', [-1 -1]);
@@ -248,6 +255,10 @@ classdef ProtocolPresetsView < appbox.View
 
         function enableStopProtocolPresetsChain(obj, tf)
             set(obj.stopChainButton, 'Enable', appbox.onOff(tf));
+        end
+
+        function enablePauseProtocolPresetChain(obj, tf)
+            set(obj.pauseChainButton, 'Enable', appbox.onOff(tf));
         end
 
         function setProtocolPresets(obj, data)
