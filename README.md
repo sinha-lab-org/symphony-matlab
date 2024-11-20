@@ -4,9 +4,7 @@ Symphony is a MATLAB based data acquisition system for electrophysiologists. It 
 
 ## Clone
 
-`git clone https://github.com/Symphony-DAS/symphony-matlab.git --recursive`
-
-**Note:** You must use the `--recursive` option to recursively clone all submodules.
+`git clone git@github.com:sinha-lab-org/symphony-matlab.git`
 
 ## Build
 
